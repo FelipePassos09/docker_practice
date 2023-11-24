@@ -128,3 +128,70 @@ O load segue o caminho contrário, ele irá carregar um arquivo gravado para o d
 
 É importante, no entanto, frisar que as imagens salvas e carregadas carregam os mesmos atributos, ou seja, nome, id, tag, etc e caso tentemos carregar uma imagem com todos os atributos iguais, mas menos atualizada ela irá sobrepor a imagem anterior, mesmo esta estando mais atualizada.
 
+# Containers
+Os containers são as instâncias em execução das imagens criadas previamente. Para os containers temos diversas possibilidades dado que, são, efetivamente, a nossa aplicação em execução.
+
+## Nomeação (--name)
+Ao criarmos um container é atribuído um nome aleatório para a instância, desse modo, para gerenciar os contêineres em execução apenas pelos ID's ou nomes gerados randomicamente se faz necessário o uso de tabelas e de x para externos. A fim de evitarmos essa situação podemos utilizar a instrução --name <container-name> ao fazermos a build do nosso container, dessa forma ele será criado com um nome especificado por nós em sua criação.
+
+## Operações com containes
+Temos diversas operações com containers como start, stop, pause, run, rename, rm e etc. Abaixo segue um resumo com cada uma das ações principais:
+* start / run -> as intruções start e run são destinadas a executarmos o container, porém há uma diferença entre elas, no run nós buildamos uma imagem para um novo container enquanto que no start nós "ligamos" um container préviamente criado.
+* stop / pause -> ambos os comandos são destinados a pararmos um conteiner, porém com o stop nós "desligamos" a instância enquanto que o pause apenas suspende ela. A suspensao de uma instância permite economizar recursos sem perdermos o cache armazenado até aquele momento.
+* restart -> reinicia um ou mais containers.
+* rm -> remove / deleta uma instância criada.
+* exec -> permite executarmos instruções diretamente dentro do container em execução.
+* cp -> a instrução cp permite realizarmos a cópia de um arquivo ou diretório entre o container e o host. Para isso passamos o diretorio e/ou arquivo origem e o diretorio destino, tanta para enviarmos algo para o container quanto para retirarmos algo deste.
+
+### logs
+O comando logs merece um capítulo á parte pois ele nos permite avaliarmos os logs gerados durante a execução de um container que esteja sendo executado em segundo plano sem a necessidade de acessarmos este remotamente.
+* -f -> este retorna todas as saídas de log geradas no container.
+* -n <x> -> permite retornarmos apenas uma quantidade x de saídas da mais recente para a mais antiga.
+* -t -> retorna os logs acompanhados de data e hora em que ocorreram.
+
+## Portas
+Para mapearmos a relação de portas entre o container e a estação local utilizamos o comando -p <host:container> ao executarmos o container pela primeira vez. Dessa forma, ao executarmos a nossa aplicação, ela já terá o mapeamento entre a porta de serviço utilizada pelo host com a porta utilizada pelo container. Isso é importante pois, para que possamos acessar um serviço ou aplicação externamente, nós consigamos ter esta interface entre host e container de forma eficiente.
+
+Outro fator importante do roteamento é para cenários onde teremos diversos conteineres rodando, isso nos permite orquestrar o roteamento evitando conflitos de porta ou fazendo o balanceamento correto entre instâncias, por exemplo: temos três contêineres onde um contém o banco de dados e esta setado para a porta 3000:3000, outro contém o nosso backend e está setado com a porta 5000:5000 e o terceiro contém o frontend e está na porta 80:8000, se mapearmos o relacionamento entre portas de forma errada o usuário externo não conseguirá acessar a aplicação pois o frontend não estará acessível, outro cenário seria se mapeassemos a mesma porta para dois contêineres diferentes, ao ser enviado um pacote este se perderia ou geraria erro na aplicação pois há dois destinos diferentes onde apenas um deles está correto.
+
+## Volumes
+Quando removemos um container, como é esperado, todo o seu conteúdo é perdido e, ao ser reconstruído, apenas os arquivos e dados contidos na imagem são preservados. Para evitarmos a perda de dados nesses casos podemos utilizar a instrução -v (volume) <nome-volume>:<diretorio> e criarmos um volume lógico externo, mas vinculado ao container. Dessa forma, tudo que for persistido nesse volume será preservado caso haja uma remoção. Para anexarmos esse volume à nova instância basta utilizarmos a instrução attach ou mapearmos este volume na criação de um novo container.
+
+Exemplo:
+
+    docker run -d -p 80:8000 --name meu-app -v app-dados:/app/dados app:v2
+
+Desemembrando essa instrução temos:
+* run -> realiza a build de uma imagem.
+* -d -> define a execução em background do container.
+* -p -> mapeia as portas entre host e container.
+* --name -> atribui um nome personalizado ao container.
+* -v -> cria um volume chamado app-dados no diretório /app/dados.
+* app:v2 -> indica a imagem que será usada para criarmos o container.
+
+# Docker Compose
+Para orquestrarmos arquiteturas de conteinerização complexas, com dependências, versões, relacionamentos entre os contêineres, portas e demais informações acerca da orquestração podemos utilizar um arquivo chamado docker-compose.yml que carrega toda a estrutura de relacionamentos, nomes, dependências e referências da nossa arquitetura.
+
+Com o compose podemos, em um único local, configurar todas as configurações de relacionamento entre os conteineres que iremos adotar na nossa aplicação, portanto com ele configuramos as portas, roteamentos, relacionamentos entre serviços, URL's de bancos de dados e toda a sorte de recursos que iremos abordar na aplicação de maneira centralizada e organizada.
+
+## A linguagem YAML
+O YAML é uma linguagem de escrita de código voltada a data serializations, ou seja, muito utilizada para escrita de configurações em geral. Nessa linguagem utilizamos a identação como maneira de encapsular e definir os escopos de cada informação inserida no código e a leitura do script resultante é realizada de cima para baixo e da esquerda para a direita.
+
+### Escrevendo um compose
+Para escrevermos um compose alguns elementos básicos devem ser observados como, por exemplo, sempre indicar as dependências de serviços no início de cada serviço, isso nos permitirá evitar que um serviço seja buildado antes de suas dependências. Outro cuidado importante é sempre respeitar os mapeamentos de portas dos Dockerfiles referentes à cada serviço, isso porque caso sejam diferentes poderemos ter erros de build.
+
+Para escrevermos um compose temos as separações de serviços e volumes onde, cada serviço contém suas configurações e relacionamentos. Caso queiramos realizar o build a partir de um Dockerfile contido na solução respectiva basta inserir o endereço do diretório onde está contido esse dockerfile. Assim como em outras linguagens, alguns recursos podem conter listas como no caso de portas, e no yaml as listas são escritas na vertical precedidas por um hífen, sempre identadas corretamente na sua respectiva tag.
+
+Também podemos invocar uma imagem diretamente pelo compose, nesse caso ela é identificada pela tag "image:" onde inserimos o nome da imagem que iremos carregar.
+
+Já os volumes podem ser relacionados também no compose, para isso criamos o o bloco que irá listar os volumes e criamos um ou mais volumes nesse bloco, em seguida, com a tag volumes:, indicamos no serviço qual volume será atribuído quando for feito o build, passando o nome do volume criado seguido por dois-pontos e o diretório alvo.
+
+## Logs
+Assim como o módulo de container, o compose também possui as mesmas possibilidades de visualizarmos e capturarmos logs de execução. Isso se faz necessário principlamente em aplicações que servem vários serviços pois, pelos logs, podemos acompanhar erros e outras situações problemáticas na nossa arquitetura.
+
+# Endereçamentos
+
+A estrutura do Docker contém uma camada de roteamento que inclui um servidor DNS próprio e um servidor DHCP também, isso garante que, ao ser criado os contêiners eles recebam um endereço IP único gerenciado pelo próprio orquestrador.
+
+Essa estrutura roteia e endereça as soluções diretamente, sem a necessidade de um firewall ou outra camada adicional de roteamento interna, mas não exclui essa necessidade caso haja o acesso de fora do servidor ou host que hospeda os contêineres.
+
